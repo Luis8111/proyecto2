@@ -5,9 +5,41 @@ const INPUT_SELECTORS = {
   email: '#email',
   mensaje: '#mensaje'
 };
+const FORM_FIELD_LABELS = {
+  nombre: 'Nombre',
+  email: 'Email',
+  mensaje: 'Mensaje'
+};
+const VALIDATION_FIELDS = ['nombre', 'email', 'mensaje'];
 const NAV_LINKS = document.querySelectorAll('nav a');
 const SECTIONS = document.querySelectorAll('section');
 const SCROLL_OFFSET = 100;
+const FAVORITES_STORAGE_KEY = 'miempresa-favoritos';
+const FAVORITE_BUTTON_SELECTOR = '.favorite-toggle';
+const SERVICES_CONTAINER_SELECTOR = '#servicios-list';
+const SERVICE_SEARCH_INPUT_SELECTOR = '#servicios-search';
+const SERVICE_FILTER_SELECTOR = '#servicios-filter';
+const SERVICE_CLEAR_BUTTON_SELECTOR = '#servicios-clear';
+const SERVICE_RESULTS_SELECTOR = '#servicios-resultados';
+
+const SERVICES_DATA = [
+  {
+    id: 'desarrollo-web',
+    name: 'Desarrollo Web',
+    description: 'Creamos sitios web modernos y funcionales.',
+    link: 'desarrollo-web.html',
+    img: '../IMG/desarrollo-web.svg',
+    alt: 'Desarrollo Web'
+  },
+  {
+    id: 'consultoria',
+    name: 'Consultoría',
+    description: 'Asesoramiento experto para optimizar tus procesos.',
+    link: 'consultoria.html',
+    img: '../IMG/consultoria.svg',
+    alt: 'Consultoría'
+  }
+];
 
 // ===== VARIABLES CON LET =====
 let currentActiveSection = null;
@@ -24,9 +56,14 @@ function validateForm() {
   let errors = [];
 
   // Validaciones con estructura mejorada
-  if (!nombre || !email || !mensaje) {
-    console.warn('⚠ Campos del formulario no encontrados');
-    return false;
+  for (let i = 0; i < VALIDATION_FIELDS.length; i++) {
+    const fieldName = VALIDATION_FIELDS[i];
+    const fieldElement = document.querySelector(INPUT_SELECTORS[fieldName]);
+
+    if (!fieldElement) {
+      console.warn(`⚠ Campo ${FORM_FIELD_LABELS[fieldName]} no encontrado`);
+      return false;
+    }
   }
 
   // Validar nombre con estructura detallada
@@ -235,6 +272,187 @@ function setupSmoothScroll() {
   });
 }
 
+// ===== FUNCIÓN: Sistema de favoritos =====
+function loadFavorites() {
+  try {
+    const stored = localStorage.getItem(FAVORITES_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.warn('⚠ Error al cargar favoritos:', error);
+    return [];
+  }
+}
+
+function saveFavorites(favorites) {
+  try {
+    localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favorites));
+  } catch (error) {
+    console.warn('⚠ Error al guardar favoritos:', error);
+  }
+}
+
+function getServiceName(card) {
+  return card.getAttribute('data-service-name') || card.querySelector('h3')?.textContent.trim() || 'Servicio';
+}
+
+function updateFavoritesSummary(favoriteIds) {
+  const summary = document.getElementById('favoritos-resumen');
+  if (!summary) return;
+
+  if (favoriteIds.length === 0) {
+    summary.textContent = 'Marca un servicio como favorito para verlo aquí.';
+    return;
+  }
+
+  const names = favoriteIds.map((id) => {
+    const card = document.querySelector(`.servicio[data-service-id="${id}"]`);
+    return card ? getServiceName(card) : id;
+  });
+
+  summary.textContent = `Tienes ${favoriteIds.length} ${favoriteIds.length === 1 ? 'favorito' : 'favoritos'}: ${names.join(', ')}.`;
+}
+
+function setFavoriteButtonState(button, isFavorite) {
+  const card = button.closest('.servicio');
+  button.classList.toggle('active', isFavorite);
+  button.textContent = isFavorite ? '★' : '☆';
+  button.setAttribute('aria-label', `${isFavorite ? 'Eliminar' : 'Agregar'} ${card ? getServiceName(card) : 'servicio'} ${isFavorite ? 'de' : 'a'} favoritos`);
+  if (card) {
+    card.classList.toggle('favorite', isFavorite);
+  }
+}
+
+function renderServices() {
+  const container = document.querySelector(SERVICES_CONTAINER_SELECTOR);
+  if (!container) {
+    console.warn('⚠ Contenedor de servicios no encontrado');
+    return;
+  }
+
+  container.innerHTML = '';
+
+  SERVICES_DATA.forEach((service) => {
+    const card = document.createElement('div');
+    card.className = 'servicio';
+    card.setAttribute('data-service-id', service.id);
+    card.setAttribute('data-service-name', service.name);
+    card.innerHTML = `
+      <button class="favorite-toggle" type="button" aria-label="Agregar ${service.name} a favoritos">☆</button>
+      <img src="${service.img}" alt="${service.alt}" width="200" height="150">
+      <h3>${service.name}</h3>
+      <p>${service.description}</p>
+      <a href="${service.link}">Más información</a>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function setupFavorites() {
+  const favorites = loadFavorites();
+  const buttons = document.querySelectorAll(FAVORITE_BUTTON_SELECTOR);
+
+  buttons.forEach((button) => {
+    const card = button.closest('.servicio');
+    if (!card) return;
+
+    const serviceId = card.getAttribute('data-service-id');
+    const isFavorite = favorites.includes(serviceId);
+    setFavoriteButtonState(button, isFavorite);
+
+    button.addEventListener('click', () => {
+      const activeFavorites = loadFavorites();
+      const index = activeFavorites.indexOf(serviceId);
+      let nextFavorites;
+      let nowFavorite;
+
+      if (index === -1) {
+        nextFavorites = [...activeFavorites, serviceId];
+        nowFavorite = true;
+      } else {
+        nextFavorites = [...activeFavorites.slice(0, index), ...activeFavorites.slice(index + 1)];
+        nowFavorite = false;
+      }
+
+      saveFavorites(nextFavorites);
+      setFavoriteButtonState(button, nowFavorite);
+      updateFavoritesSummary(nextFavorites);
+      filterServices();
+    });
+  });
+
+  updateFavoritesSummary(favorites);
+  filterServices();
+}
+
+function filterServices() {
+  const searchInput = document.querySelector(SERVICE_SEARCH_INPUT_SELECTOR);
+  const filterSelect = document.querySelector(SERVICE_FILTER_SELECTOR);
+  const resultMessage = document.querySelector(SERVICE_RESULTS_SELECTOR);
+  const favorites = loadFavorites();
+  const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+  const filterOption = filterSelect ? filterSelect.value : 'all';
+  const serviceCards = document.querySelectorAll('.servicio');
+  let visibleCount = 0;
+
+  serviceCards.forEach((card) => {
+    const title = card.querySelector('h3')?.textContent.toLowerCase() || '';
+    const description = card.querySelector('p')?.textContent.toLowerCase() || '';
+    const serviceName = card.getAttribute('data-service-name')?.toLowerCase() || '';
+    const serviceId = card.getAttribute('data-service-id');
+    const isFavorite = favorites.includes(serviceId);
+    const matchesSearch = query === '' || title.includes(query) || description.includes(query) || serviceName.includes(query);
+    const matchesFilter = filterOption === 'all' || (filterOption === 'favoritos' && isFavorite);
+    const visible = matchesSearch && matchesFilter;
+
+    card.style.display = visible ? 'flex' : 'none';
+    if (visible) visibleCount++;
+  });
+
+  if (resultMessage) {
+    if (visibleCount === 0) {
+      resultMessage.textContent = 'No se encontraron servicios que coincidan con la búsqueda.';
+    } else if (visibleCount === 1) {
+      resultMessage.textContent = '1 servicio coincide con la búsqueda.';
+    } else {
+      resultMessage.textContent = `${visibleCount} servicios coinciden con la búsqueda.`;
+    }
+  }
+}
+
+function setupServiceFilter() {
+  const searchInput = document.querySelector(SERVICE_SEARCH_INPUT_SELECTOR);
+  const filterSelect = document.querySelector(SERVICE_FILTER_SELECTOR);
+  const clearButton = document.querySelector(SERVICE_CLEAR_BUTTON_SELECTOR);
+
+  if (!searchInput && !filterSelect && !clearButton) {
+    return;
+  }
+
+  const update = () => filterServices();
+  if (searchInput) {
+    searchInput.addEventListener('input', update);
+  }
+  if (filterSelect) {
+    filterSelect.addEventListener('change', update);
+  }
+  if (clearButton) {
+    clearButton.addEventListener('click', () => {
+      if (searchInput) {
+        searchInput.value = '';
+      }
+      if (filterSelect) {
+        filterSelect.value = 'all';
+      }
+      filterServices();
+      if (searchInput) {
+        searchInput.focus();
+      }
+    });
+  }
+
+  filterServices();
+}
+
 // ===== FUNCIÓN: Mejorar apariencia de inputs =====
 function enhanceInputs() {
   const inputs = document.querySelectorAll('input, textarea');
@@ -291,10 +509,13 @@ function initialize() {
   
   // Array de funciones inicializadoras con validación
   const initializers = [
+    { name: 'Render de servicios', fn: renderServices },
     { name: 'Validación de formularios', fn: setupFormValidation },
     { name: 'Scroll suave', fn: setupSmoothScroll },
     { name: 'Navegación activa', fn: updateActiveNavLink },
-    { name: 'Mejora de inputs', fn: enhanceInputs }
+    { name: 'Mejora de inputs', fn: enhanceInputs },
+    { name: 'Sistema de favoritos', fn: setupFavorites },
+    { name: 'Búsqueda y filtro de servicios', fn: setupServiceFilter }
   ];
   
   // Ejecutar cada inicializador con manejo de errores

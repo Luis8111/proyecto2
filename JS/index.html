@@ -51,18 +51,23 @@
         <section id="servicios">
             <h2>Nuestros Servicios</h2>
             <p class="intro-servicios">Ofrecemos soluciones integrales para potenciar tu negocio</p>
-            <div class="servicio">
-                <img src="../IMG/desarrollo-web.svg" alt="Desarrollo Web" width="200" height="150">
-                <h3>Desarrollo Web</h3>
-                <p>Creamos sitios web modernos y funcionales.</p>
-                <a href="desarrollo-web.html">Más información</a>
+
+            <div class="servicios-controls">
+                <input id="servicios-search" type="search" placeholder="Buscar servicios..." aria-label="Buscar servicios">
+                <select id="servicios-filter" aria-label="Filtrar servicios">
+                    <option value="all">Todos los servicios</option>
+                    <option value="favoritos">Solo favoritos</option>
+                </select>
+                <button id="servicios-clear" class="clear-search" type="button" aria-label="Limpiar búsqueda">Limpiar</button>
             </div>
-            <div class="servicio">
-                <img src="../IMG/consultoria.svg" alt="Consultoría" width="200" height="150">
-                <h3>Consultoría</h3>
-                <p>Asesoramiento experto para optimizar tus procesos.</p>
-                <a href="consultoria.html">Más información</a>
+
+            <div id="favoritos-panel" class="favoritos-panel">
+                <h3>Mis Favoritos</h3>
+                <p id="favoritos-resumen">Marca un servicio como favorito para verlo aquí.</p>
             </div>
+            <p id="servicios-resultados" class="servicios-resultados">Busca o filtra para ver los servicios disponibles.</p>
+
+            <div id="servicios-list" class="servicios-list"></div>
         </section>
         <section id="acerca">
             <h2>Acerca de Nosotros</h2>
